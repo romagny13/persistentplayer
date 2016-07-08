@@ -1,0 +1,70 @@
+@import "compass";
+$mobile: 0px !default;
+$tablet: 640px !default;
+$desktop: 1024px !default;
+* {
+  @include box-sizing("border-box");
+}
+
+.row:after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+@mixin init-columns() {
+  .one-third-mobile,
+  .one-third-tablet,
+  .one-third-desktop,
+  .two-thirds-mobile,
+  .two-thirds-tablet,
+  .two-thirds-desktop,
+  .one-quarter-mobile,
+  .one-quarter-tablet,
+  .one-quarter-desktop,
+  .three-quarters-mobile,
+  .three-quarters-tablet,
+  .three-quarters-desktop,
+  .one-half-mobile,
+  .one-half-tablet,
+  .one-half-desktop,
+  .full-mobile, 
+  .full-tablet,
+  .full-desktop {
+    display: block;
+    float: left;
+  }
+}
+
+@mixin make-columns($device) {
+  .one-third-#{$device} {
+    width: 33.33333%;
+  }
+  .two-thirds-#{$device} {
+    width: 66.66667%;
+  }
+  .one-quarter-#{$device} {
+    width: 25%;
+  }
+  .three-quarters-#{$device} {
+    width: 75%;
+  }
+  .one-half-#{$device} {
+    width: 50%;
+  }
+  .full-#{$device} {
+    width: 100%;
+  }
+}
+
+@include init-columns;
+
+@include make-columns(mobile);
+
+@media (min-width: $tablet) {
+  @include make-columns(tablet);
+}
+
+@media (min-width: $desktop) {
+  @include make-columns(desktop);
+}
