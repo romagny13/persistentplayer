@@ -47,7 +47,6 @@ function VideoController (id) {
 
     // création du media player
     var options = {
-        muted : true,
         poster : video.poster,
         sources : [
             {
