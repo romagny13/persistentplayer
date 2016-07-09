@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="css/main.css">
+        <title></title>
+        <style>
+
+        </style>
+    </head>
+
+    <body>
+        <div class="page-wrapper">
+            <header class="page-header">
+                <nav>
+                    <a href="#/">Home</a>
+                    <a href="#/settings">Settings</a>
+                </nav>
+            </header>
+
+            <div class="page-content"></div>
+
+            <div class="persistent-player hide">
+                <div class="mp-player">
+                    <div id="player-youtube"></div>
+                </div>
+            </div>                       
+        </div>
+
+        <script src="https://www.youtube.com/iframe_api"></script>
+        <script src="https://cdn.jsdelivr.net/snap.svg/0.4.1/snap.svg-min.js"></script>
+        <script src="js/spa-player.js"></script>
+        <script src="js/spa.js"></script>
+        <script src="js/google.js"></script>
+        <script>
+            var media_player_instance;
+
+            var videoService = function () {
+
+                function getAll (callback) {
+
+                    var categoryId = 1;
+                    // console.log(youtubeDataApi);
+                    var videos = youtubeDataApi.getMostPopularVideos(categoryId, false,30, function(response){
+                        var videos =  JSON.parse(response);
+                        //                        console.log(typeof videos);
+                        //                        console.log(videos);
+                        callback(videos);
+                    });
+                }
+
+                function getOne (id,callback) {
+                    var videos = youtubeDataApi.getVideo(id, false, function(response){
+                        var video =  JSON.parse(response);
+                        callback(video);
+                    });
+                }
+
+                return {
+                    getAll: getAll,
+                    getOne : getOne
+                }
+
+            }();
+
+            function createLink (id,poster, title){
+
+                var link = document.createElement('a');
+                link.setAttribute('href', '#/video/' + id);
+                link.classList.add('playlist-video');
+
+
+                var img = document.createElement('img');
+                img.setAttribute('src', poster);
+
+                link.appendChild(img);
+
+                var span = document.createElement('span');
+                span.classList.add('playlist-video_title');
+                span.innerHTML = title;
+
+                link.appendChild(span);
+
+                return link;
+            }
+
+
+            function HomeController () {
+
+                function loadVideos(videos){
+                    videos.items.forEach(function (video,index){
+                        var link = createLink(video.id,video.snippet.thumbnails.medium.url,video.snippet.title);
+                        playlist.appendChild(link);
+                    }); 
+                }
+
+
+                var playlist = document.querySelector('.playlist');
+
+                var categoryId = 1,
+                    key = 'playlist-' + categoryId;
+
+                if(spa.ioc.has(key)){
+                    var videos = spa.ioc.resolve(key);
+                    loadVideos(videos);
+                }
+                else {
+                    var videoService = spa.services.resolve('videoService');
+                    videoService.getAll(function(videos){
+                        loadVideos(videos);
+                        spa.ioc.register(key,videos);
+                    });
+                }
+
+            }
+
+            function VideoController (id) {
+
+                var persistent_player_container = document.querySelector('.persistent-player'),
+                    videoService = spa.services.resolve('videoService');
+
+                var el = document.querySelector('.mp-player'),
+                    title = document.querySelector('.page-title');
+
+                videoService.getOne(id,function(video){
+
+                    // création du media player
+                    var options = {
+                        videoId : id,
+                    };
+                    if(!media_player_instance){
+                        player = new mp.YtbPlayer(el,options);
+                        media_player_instance = {
+                            videoId : id,
+                            options : options,
+                            player : player,
+                            el : el
+                        };
+                        persistent_player_container.classList.remove('hide');
+                        // infos
+                        title.innerHTML = video.items[0].snippet.title;
+                    }
+                    else {
+                        // si la video est différente de la video actuelle
+                        if(media_player_instance.videoId != id){
+                            media_player_instance.player.next(options);
+                            // infos
+                            title.innerHTML = video.items[0].snippet.title;
+                        }
+                    } 
+                });
+            }
+
+            function main (){
+
+                var viewContainer = document.querySelector('.page-content'),
+                    persistent_player_container = document.querySelector('.persistent-player'),
+                    close_button,
+                    close_timer,
+                    isClosing = false,
+                    received_id;
+
+                spa.init(viewContainer);
+
+                // services
+                spa.services.register('videoService', videoService);
+
+                // routes
+                spa.router.registerRoute('/','templates/home.html', HomeController);
+                spa.router.registerRoute('/video/:id','templates/video.html', VideoController).with('id','[a-zA-Z_0-9\-]+');
+                spa.router.registerRoute('/settings','templates/settings.html');
+
+                function onNavigateFrom () {
+                    if(!isClosing){
+                        spa.router.navigateToHash('#/video/' + received_id);
+                    }
+                }
+
+                document.addEventListener('routechanging',function (e){
+                    if(e.navigationEventArgs.route.pattern == '/video/:id'){
+                        //  creation mini player
+                        if(!persistent_player_container.classList.contains('mini')){
+                            persistent_player_container.classList.add('mini');
+                        }
+
+                        received_id = e.navigationEventArgs.parameters[0];
+                        persistent_player_container.addEventListener('click',onNavigateFrom);  
+                        media_player_instance.player.switchToMini();
+
+                        close_button = persistent_player_container.querySelector('.close-button');
+                        close_button.addEventListener('click',function(){
+                            isClosing = true;
+                            media_player_instance.player.closeMini();
+
+                            clearTimeout(close_timer);
+                            setTimeout(function(){
+                                isClosing = false;
+                            },1000);
+                        }); 
+                    }
+                });
+
+                document.addEventListener('routechanged',function (e){
+                    if(e.navigationEventArgs.route.pattern == '/video/:id'){
+                        // player en grand
+                        if(persistent_player_container.classList.contains('mini')){
+                            persistent_player_container.classList.remove('mini');
+                        }
+                        persistent_player_container.removeEventListener('click',onNavigateFrom);
+                        if(media_player_instance){
+                            media_player_instance.player.switchToNormal();
+                        }
+                    }
+                });
+
+            }
+
+            document.addEventListener('DOMContentLoaded', main);
+
+
+
+            //            document.querySelector('button').addEventListener('click', function(){
+            //
+            //                var categories = youtubeDataApi.getCategories(function(response){
+            //                    //                    console.log(response);
+            //                });
+            //
+            //
+            //
+            //
+            //
+            //                //                console.log(videos);
+            //            });
+
+
+        </script>
+    </body>
+</html>

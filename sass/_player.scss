@@ -169,12 +169,12 @@ Normal
         transition: margin .2s, width .2s;
         transition-timing-function: $easing2;
     }
-    
+
     .mp-volume-panel.open {
         width: 64px;
         margin-left: 12px;
     }
-    
+
     .mp-volume-slider {
         display: block;
         height: 100%;
@@ -386,12 +386,16 @@ Mini
     border: 1px solid rgba(125, 125, 125, 0.3);
     box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14), 0 1px 10px 0 rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
     cursor: pointer;
+    
+    &.hide {
+       display: none !important;
+    }
 }
 
 .persistent-player.mini {
     display: block;
-//    width: 224px;
-//    height: 126px;
+    //    width: 224px;
+    //    height: 126px;
     top: auto;
     left: auto;
     position: fixed;

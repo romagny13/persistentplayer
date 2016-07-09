@@ -96,6 +96,7 @@ body {
     display: block;
     float: left;
     width: 100%;
+    margin: 0;
     background: #212121;
     position: relative;
     overflow: hidden;
@@ -135,19 +136,22 @@ body {
 
 @media (min-width: 600px) {
     .playlist-video {
-        max-width: 50%;
+        max-width: calc(50% - 16px);
+        margin: 8px;
     }
 }
 
 @media (min-width: 900px) {
     .playlist-video {
-        max-width: 33.33333%;
+        max-width: calc(33.33333% - 16px);
+        margin: 8px;
     }
 }
 
 @media (min-width: 1200px) {
     .playlist-video {
-        width: 25%;
+        max-width: calc(25% - 16px);
+        margin: 8px;
     }
 }
 

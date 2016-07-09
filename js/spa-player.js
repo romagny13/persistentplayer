@@ -343,7 +343,7 @@
 
     }();
 
-    var Player = function(el, options) {
+    var HTML5Player = function(el, options) {
 
         var mp_player,
             loader,
@@ -984,9 +984,715 @@
         }
     }
 
+    var YtbPlayer = function(el, options) {
+
+        var mp_player,
+            loader,
+            player,
+            video_duration,
+            media_player_iframe,
+            media_player_width,
+            bottom_bar,
+            bottom_bar_width,
+            media_tooltip,
+            play_pause_button,
+            play_pause_snap_button,
+            progress_handle_button,
+            progress_bar,
+            play_progress,
+            load_progress,
+            time_current,
+            time_duration,
+            mute_button,
+            full_screen_button,
+            progress_timer,
+            mouse_move_timer,
+            volume_slider,
+            volume_slider_offset_left,
+            volume_slider_handle,
+            full_screen_button,
+            mini_overlay,
+            volume_panel,
+            mouse_move_timer,
+            isClosed,
+            isMini = false,
+            isOnProgressBar = false,
+            progressDrag = false,
+            volumeDrag = false,
+            isInFullscreen = false;
+
+        var defaults = {
+            autoplay : true,
+            currentTime : 0,
+            volume : .7,
+            muted : false,
+            hideAlwaysControls : false,
+            showAlwaysControls : false,
+            width : 853,
+            height : 480,
+            mini_width : 224,
+            mini_height : 126
+        }
+
+        //        function showLoader() {
+        //            loader.style.display = 'block';
+        //        }
+        //
+        //        function hideLoader() {
+        //            loader.style.display = 'none';
+        //        }
+
+        function launch_progress_timer () {
+            clearInterval(progress_timer);
+            progress_timer = setInterval(onTimeUpdate, 500);
+        }
+
+        function stop_progress_timer (){
+            clearInterval(progress_timer);
+        }
+
+        function onTimeUpdate() {
+
+            if (isInFullscreen) {
+                var play_state = player.getPlayerState();
+                if (play_state == 0 || play_state == 2) {
+                    play_pause_snap_button.toState(0);
+                } else {
+                    play_pause_snap_button.toState(1);
+                }
+            }
+
+            if (!progressDrag) {
+                // valeur courante / durée pour obtenir le scale x
+                var currentTime = player.getCurrentTime();
+                var scaleX = currentTime / video_duration;
+                play_progress.style.transform = 'scaleX(' + scaleX + ')';
+
+                var left = bottom_bar_width * currentTime / video_duration;
+                progress_handle_button.style.left = left + 'px';
+
+                // times
+                time_current.innerHTML = mpHelper.formatTime(currentTime);
+            }
+
+        }
+
+        function onResize (){
+            progress_bar_offset_left = play_progress.getBoundingClientRect().left;
+            volume_slider_offset_left = volume_slider.getBoundingClientRect().left;
+        }
+
+        function onBuffering() {
+            if(player){
+                var bytes = player.getVideoBytesLoaded();
+                var total = player.getVideoBytesTotal();
+
+                var scaleX = bytes / total;
+                load_progress.style.transform = 'scaleX(' + scaleX + ')';
+
+                if (bytes < total) {
+                    setTimeout(onBuffering, 500);
+                }
+            }
+        }
+
+        function onHidingMouse() {
+            clearTimeout(mouse_move_timer);
+
+            if (!isOnProgressBar) {
+                if (mp_player.classList.contains('hide-cursor')) {
+                    mp_player.classList.remove('hide-cursor');
+                }
+
+                var play_state = player.getPlayerState();
+                if (play_state != 0 && play_state != 2 ) {
+                    mouse_move_timer = setTimeout(function() {
+                        mp_player.classList.add('hide-cursor');
+                        hideControls();
+                    }, 3000);
+                }
+            }
+        }
+
+        function onMousedownOnProgressBarHandleButton(e) {
+            progressDrag = true;
+        }
+
+        function onMouseup(e) {
+            if (progressDrag) {
+                onProgress(e);
+                progressDrag = false;
+            }
+            if (volumeDrag) {
+                onVolumeChange(e);
+                volumeDrag = false;
+            }
+        }
+
+        function onMousemove(e) {
+            if (progressDrag) {
+                onProgress(e);
+            }
+            if (volumeDrag) {
+                onVolumeChange(e);
+            }
+        }
+
+        function onProgress(e) {
+            var position = e.pageX - progress_bar_offset_left,
+                percentage = 100 * position / play_progress.clientWidth;
+
+            if (percentage > 100) {
+                percentage = 100;
+            }
+            if (percentage < 0) {
+                percentage = 0;
+            }
+
+            var currentTimeToGo = video_duration * percentage / 100;
+            var scaleX = currentTimeToGo / video_duration;
+            play_progress.style.transform = 'scaleX(' + scaleX + ')';
+
+            var left = bottom_bar_width * percentage / 100;
+            progress_handle_button.style.left = left + 'px';
+
+            var newTime = video_duration * percentage / 100;
+            player.seekTo(newTime);
+            time_current.innerHTML = mpHelper.formatTime(player.getCurrentTime());
+        }
+
+        function onMousemoveOnProgressBar(e) {
+            var position = e.pageX - progress_bar_offset_left,
+                percentage = 100 * position / progress_bar.clientWidth;
+
+            if (percentage > 100) {
+                percentage = 100;
+            }
+            if (percentage < 0) {
+                percentage = 0;
+            }
+
+            var timeToGo = video_duration * percentage / 100;
+            media_tooltip.innerHTML = mpHelper.formatTime(timeToGo);
+
+            var width = mpHelper.getWidthForTime(timeToGo);
+            var left = bottom_bar_width * percentage / 100 - width / 2;
+            media_tooltip.style.left = left + 'px';
+
+            if (!media_tooltip.classList.contains('show')) {
+                media_tooltip.classList.add('show');
+            }
+        }
+
+        function onMouseleaveOnProgressBar() {
+            isOnProgressBar = false;
+            media_tooltip.classList.remove('show');
+        }
+
+        function openVolumePanel() {
+            volume_panel.classList.add('open');
+        }
+
+        function closeVolumePanel () {
+            isOnProgressBar = false;
+            volume_panel.classList.remove('open');
+        }
+
+        function onFullscreenChange(e) {
+            var fullscreen = document.fullScreen || document.mozFullScreen || document.webkitIsFullScreen;
+            if (fullscreen !== undefined) {
+                isInFullscreen = fullscreen;
+            }
+            else{
+                isInFullscreen = false;
+            }
+        }
+
+        function onLoadPlayer() {
+            var videoId = options.videoId;
+            console.log(videoId);
+
+            var container = document.createElement('div');
+            mp_player.appendChild(container);
+
+            player = new YT.Player(container, {
+                width: options.width,
+                height: options.height,
+                videoId: videoId,
+                playerVars: {
+                    autoplay: options.autoplay ? 1 : 0,
+                    controls: 0,
+                    // playlist: videoId,
+                    showinfo: 0           
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(e) {
+            //            hideLoader();
+
+            media_player_iframe = el.querySelector('iframe');
+
+            mp_player.style.width = options.width + 'px';
+            mp_player.style.height = options.height + 'px';
+
+            // currentTime
+            if(options.currentTime > 0){
+                player.seekTo(options.currentTime);
+            }
+            time_current.innerHTML = '0:00';
+
+            // duration
+            video_duration = player.getDuration();
+            time_duration.innerHTML = mpHelper.formatTime(video_duration);
+
+            // autoplay
+            if (options.autoplay) {
+                play_pause_button.setAttribute('title', 'Pause');
+                play_pause_snap_button.toState(1);
+            } 
+            else {
+                play_pause_button.setAttribute('title', 'Play');
+            }
+
+            // volume
+            setVolume(options.volume);
+
+            // muted
+            if(options.muted){
+                player.mute();
+                updateVolume_controls(0)      
+            }
+
+            if(isClosed){
+                mp_player.style.display ='block';
+                //                player.play();
+                isClosed = false;
+            }
+
+            // events
+            if (!options.showAlwaysControls && !options.hideAlwaysControls) {
+                mp_player.addEventListener('mousemove', showControls);
+                mp_player.addEventListener('mouseleave', hideControls);     
+            }
+
+            // full screen
+            full_screen_button.addEventListener('click', function() {
+
+                var requestFullScreen = media_player_iframe.requestFullScreen || media_player_iframe.mozRequestFullScreen || media_player_iframe.webkitRequestFullScreen;
+                if (requestFullScreen) {
+                    requestFullScreen.bind(media_player_iframe)();
+                }
+
+            });
+            media_player_iframe.addEventListener('webkitfullscreenchange', onFullscreenChange, false);
+            media_player_iframe.addEventListener('mozfullscreenchange', onFullscreenChange, false);
+            media_player_iframe.addEventListener('fullscreenchange', onFullscreenChange, false);
+            media_player_iframe.addEventListener('MSFullscreenChange', onFullscreenChange, false);
+
+            launch_progress_timer();
+            setTimeout(onBuffering, 500);
+
+            // show / hide always controls
+            if (!options.hideAlwaysControls) {
+                showControls();
+            }
+        }
+
+        function onPlayerStateChange(e) {
+            //YT.PlayerState.ENDED
+            //YT.PlayerState.PLAYING
+            //YT.PlayerState.PAUSED
+            //YT.PlayerState.BUFFERING
+            //YT.PlayerState.CUED
+
+            if (e.data == YT.PlayerState.PLAYING) {
+                play_pause_snap_button.toState(1);
+            }
+            if (e.data == YT.PlayerState.PAUSED) {
+                play_pause_snap_button.toState(0);
+            }
+            if (e.data == YT.PlayerState.ENDED) {
+                play_pause_snap_button.toState(0);
+                stop_progress_timer();
+                showControls();
+            }
+        }
+
+        function init (el,options){   
+            if (!el) throw new Error('El cannot be null');
+
+            mp_player = el;
+            extend(defaults,options);
+
+            scriptLoader.loadScripts({
+                sources: [{
+                    src: 'https://www.youtube.com/iframe_api',
+                    inBody: true
+                }, {
+                    src: 'https://cdn.jsdelivr.net/snap.svg/0.4.1/snap.svg-min.js',
+                    inBody: true
+                }],
+                onComplete: onContinueInit
+            });
+        }
+
+        function onContinueInit (){
+            /*****************************************
+                    Création des éléments html 
+            ******************************************/
+            mp_player.innerHTML = '';
+
+            if (typeof(YT) == 'undefined' || typeof(YT.Player) == 'undefined') {
+                window.onYouTubeIframeAPIReady = onLoadPlayer();
+            } else {
+                onLoadPlayer();
+            }
+            // bottom bar
+            var margin = 24;
+            media_player_width = options.width;
+            bottom_bar_width = media_player_width - 2 * margin;
+            HTMLCreator.createBottomBar(bottom_bar_width,margin,mp_player);
+
+            //            // loader
+            //            HTMLCreator.createLoader(mp_player);
+            //
+            //            // affichage du loader
+            //            loader = mp_player.querySelector('.mp-loading');
+            //            showLoader();
+
+            /*****************************************
+                        SVG Buttons 
+            ******************************************/
+            play_pause_snap_button = new SVGButton('.mp-play-button svg', {
+                states: [
+                    'M 12,26 18.5,22 18.5,14 12,10 z M 18.5,22 25,18 25,18 18.5,14 z',
+                    'M 12,26 16.33,26 16.33,10 12,10 z M 20.66,26 25,26 25,10 20.66,10 z'
+                ],
+                duration: 200
+            });
+
+            mute_snap_button = new SVGButton('.mp-mute-button svg', {
+                states: [
+                    'm 9,15.37 0,5.25 3.58,0 4.48,4.37 0,-14 -4.48,4.37 -3.58,0 0,0 z M21,18 C21,16.43 20.01,15.08 18.78,14.42 l0,7.16 C20.1,20.92 21,19.57 21,18 z M 18.78,10.2 18.78,12.04 C21.35,12.8 23.22,15.18 23.22,18 23.22,20.82 21.35,23.2 18.78,23.96 L18.78,25.8 C22.34,24.99 25,21.8 25,18 25,14.2 22.34,11.01 18.78,10.2 z',
+                    'm 9,15.37 0,5.25 3.58,0 4.48,4.37 0,-14 -4.48,4.37 -3.58,0 0,0 z M21,18 C21,16.43 20.01,15.08 18.78,14.42 l0,7.16 C20.1,20.92 21,19.57 21,18 z',
+                    'M 17.060547 10.990234 L 12.580078 15.359375 L 9 15.359375 L 9 15.369141 L 9 20.619141 L 12.580078 20.619141 L 17.060547 24.990234 L 17.060547 10.990234 z M 20.199219 14.5 L 18.939453 15.730469 L 21.259766 18 L 18.939453 20.259766 L 20.199219 21.5 L 22.519531 19.230469 L 24.849609 21.5 L 26.109375 20.259766 L 23.789062 18 L 26.109375 15.740234 L 26.109375 15.730469 L 24.849609 14.5 L 22.519531 16.759766 L 20.199219 14.5 z '
+                ],
+                noTransition: true
+            });
+
+            /*****************************************
+                        GET éléments html 
+            ******************************************/
+            bottom_bar = el.querySelector('.mp-bottom-bar');
+            play_progress = el.querySelector('.mp-play-progress');
+            progress_bar_offset_left = play_progress.getBoundingClientRect().left;
+            load_progress = el.querySelector('.mp-load-progress');
+            time_current = el.querySelector('.mp-time-current');
+            time_duration = el.querySelector('.mp-time-duration');
+            progress_handle_button = el.querySelector('.mp-handle-button');
+            progress_handle_button_width = progress_handle_button.clientWidth;
+            progress_bar = el.querySelector('.mp-progress-bar');
+            media_tooltip = el.querySelector('.mp-tooltip');
+            play_pause_button = el.querySelector('.mp-play-button');
+            mute_button = el.querySelector('.mp-mute-button');
+            volume_slider = el.querySelector('.mp-volume-slider');
+            volume_slider_offset_left = volume_slider.getBoundingClientRect().left;
+            volume_slider_handle = el.querySelector('.mp-volume-slider-handle');
+            full_screen_button = el.querySelector('.mp-fullscreen-button');
+            volume_panel = el.querySelector('.mp-volume-panel');
+
+            /*****************************************
+                        inline styles
+            ******************************************/
+            play_progress.style.transform = 'scaleX(0)'; 
+            load_progress.style.transform = 'scaleX(0)'; 
+
+            /*****************************************
+                        Events
+            ******************************************/
+            // resize
+            //        video.onresize = onResize;
+            window.onresize = onResize;
+
+            // user Play / Pause
+            play_pause_button.addEventListener('mouseup', togglePlayPause);
+            progress_bar.addEventListener('mouseenter', function() {
+                isOnProgressBar = true;
+            })
+
+            // cacher les controls si la souris ne bouge pas
+            mp_player.addEventListener('mousemove', onHidingMouse);
+            // user change progress 
+            progress_bar.addEventListener('mousemove', onMousemoveOnProgressBar);
+            progress_bar.addEventListener('mouseleave', onMouseleaveOnProgressBar);
+            progress_bar.addEventListener('click', onProgress);
+            progress_handle_button.addEventListener('mousedown', onMousedownOnProgressBarHandleButton);
+            document.addEventListener('mouseup', onMouseup);
+            document.addEventListener('mousemove', onMousemove);
+
+            // Mute
+            mute_button.addEventListener('click', toggleMute);
+            mute_button.addEventListener('mouseenter', openVolumePanel);
+            bottom_bar.addEventListener('mouseleave', closeVolumePanel);
+            // Volume change
+            volume_slider.addEventListener('mousedown', function(e) {
+                volumeDrag = true;
+            });
+        }
+
+        init(el,options);
+
+        /*****************************************
+                            Api
+            -	Play
+            -	Pause
+            -	Stop
+            -	Change current time
+            -	Change video source
+            -	Hide / show controls + force
+            -	Mute
+            -	Change volume
+            -	Go / exit fullscreen ?
+            -	Change size
+            -	Change etat > mini ou grand
+         ******************************************/
+
+        function play() {
+            player.playVideo();
+            launch_progress_timer();
+            play_pause_button.setAttribute('title', 'Pause');
+            play_pause_snap_button.toState(1);
+
+            var is_hover_bottom_bar = el.querySelector('.mp-bottom-bar:hover');
+            if (!is_hover_bottom_bar) {
+                setTimeout(hideControls, 2000);
+            }
+        }
+
+        function pause() {
+            player.pauseVideo();
+            stop_progress_timer();
+            showControls();
+            play_pause_button.setAttribute('title', 'Play');
+            play_pause_snap_button.toState(0);
+        }
+
+        function stop() {
+            player.stopVideo();
+            stop_progress_timer();
+            showControls();
+            play_pause_button.setAttribute('title', 'Play');
+            play_pause_snap_button.toState(0);
+        }
+
+        function togglePlayPause() {
+            //-1 : non démarré
+            //0 : arrêté
+            //1 : en lecture
+            //2 : en pause
+            //3 : en mémoire tampon
+            //5 : en file d'attente
+
+            var play_state = player.getPlayerState();
+            if (play_state == -1 || play_state == 0 || play_state == 2 || play_state == 5) {
+                play();
+            }
+            if (play_state == 1) {
+                pause();
+            }
+        }
+
+        function seekTo(time){
+            if (time > video_duration) {
+                time = video_duration;
+            }
+            player.seekTo(time);
+        }
+
+        function toggleMute() {
+
+            if (player.isMuted()) {
+                player.unMute();
+                updateVolume_controls(player.getVolume() / 100);
+            } else {
+                player.mute();
+                updateVolume_controls(0);
+            }
+        }
+
+        function setVolume(volume) {
+
+            if (volume < .01) {
+                volume = 0;
+            }
+            if (volume > 1) {
+                volume = 1;
+            }
+
+            if (player.isMuted()) {
+                player.unMute();
+            }
+
+            player.setVolume(volume * 100);
+            updateVolume_controls(volume);
+        }
+
+        function updateVolume_controls(volume) {
+
+            if (volume == 0) {
+                mute_snap_button.toState(2);
+            } else if (volume < .5) {
+                mute_snap_button.toState(1);
+            } else {
+                mute_snap_button.toState(0);
+            }
+
+            var left = 52 * volume;
+            volume_slider_handle.style.left = left + 'px';
+        }
+
+        function showControls(force) {
+
+            if(options.hideAlwaysControls && !force) return false;
+
+            if (!bottom_bar.classList.contains('show')) {
+                bottom_bar.classList.add('show');
+            }
+        }
+
+        function hideControls(force) {
+            var play_state = player.getPlayerState();
+            if ((options.showAlwaysControls || play_state == 0 || play_state == 2) && !force) return false;
+
+            bottom_bar.classList.remove('show');
+        }
+
+        function setSize (width,height){
+            mp_player.style.width = width + 'px';
+            mp_player.style.height = height + 'px';
+            if(media_player_iframe){
+                media_player_iframe.width = width;
+                media_player_iframe.height = height;
+            }
+        }
+
+        function next(opts) {
+
+            // showLoader();   
+
+            var old = {
+                autoplay : true,
+                currentTime : 0,
+                volume : getVolume(),
+                muted : isMuted(),
+                hideAlwaysControls : false,
+                showAlwaysControls : false,
+                width : 853,
+                height : 480,
+                mini_width : 224,
+                mini_height : 126
+            }
+            options = extend(old, opts);
+
+            try {
+                if(isClosed){
+                    mp_player.style.display ='block';
+                }
+
+                // player.loadVideoById({videoId : opts.videoId});
+                stop_progress_timer();
+                clearTimeout(onBuffering);
+                init(el,opts);
+            }
+            catch (e) {
+                throw new Error(e.message);
+            }
+        }
+
+        function switchToMini(width, height){    
+            if(!width) width = options.mini_width;
+            if(!height) height = options.mini_height;
+
+            HTMLCreator.createMini(mp_player);
+            mini_overlay = mp_player.querySelector('.mini-overlay');
+            // width height
+            setSize(width,height);
+            mp_player.classList.add('mini');
+        }
+
+        function switchToNormal(){
+            if(mini_overlay){
+                mp_player.removeChild(mini_overlay);
+            }
+            setSize(options.width,options.height);
+            mp_player.classList.remove('mini');
+        }
+
+        function toggleMini(){
+            if(isMini){
+                switchToNormal();
+                isMini = false;
+            }
+            else{
+                switchToMini();
+                isMini = true;
+            }
+        }
+
+        function getCurrentTime () {
+            return video.currentTime;
+        }
+
+        function getDuration () {
+            return player.getDuration();
+        }
+
+        function getVolume () {
+            return player.getVolume() / 100;
+        }
+
+        function isMuted () {
+            return player.isMuted();
+        }
+
+        function closeMini(){
+            mp_player.style.display ='none';
+            stop();
+            isClosed = true;
+        }
+
+        return {
+            closeMini : closeMini,
+            getCurrentTime : getCurrentTime,
+            getDuration : getDuration,
+            getVolume : getVolume,
+            hideControls : hideControls,
+            isMuted : isMuted,
+            next : next,
+            pause : pause,
+            play : play,
+            seekTo : seekTo,
+            setSize : setSize,
+            setVolume : setVolume,
+            showControls: showControls,
+            stop : stop,
+            switchToMini : switchToMini,
+            switchToNormal : switchToNormal,
+            toggleMini : toggleMini,
+            toggleMute : toggleMute,
+            togglePlayPause : togglePlayPause
+        }
+    }
+
     var mp = {
         extend: extend,
-        HTML5Player: Player,
+        HTML5Player: HTML5Player,
+        YtbPlayer : YtbPlayer,
         scriptLoader: scriptLoader,
         SVGButton: SVGButton,
         version: '0.2.0'
