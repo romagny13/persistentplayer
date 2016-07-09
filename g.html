@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title></title>
+    </head>
+
+    <body>
+        <button class="google">Se connecter avec Google</button>
+
+        <div class="result"></div>
+        <script>
+
+            var google_button, 
+                result;
+
+            var apiKey = 'AIzaSyAQl6Zu4Q-WwieawCfIspKb4waz3Yb9K4Q',
+                clientId = '81691439080-6mno4ckpflg5cfqljmc22lo1n9h8n94q.apps.googleusercontent.com',
+                clientSecret = '6O3XRxcsM5PPelxLwG7yhm2z',
+                scopes = 'https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/youtube',
+                redirectUri = 'http://localhost/persistent/test/g.html';
+
+
+            var  extend  = function(source, target) {
+                if (typeof source == 'object') {
+                    for (var property in source) {
+                        if (!target[property]) {
+                            target[property] = source[property];
+                        }
+                    }
+                }
+                return target;
+            };
+
+            var ajax = function (){
+                var defaults = {
+                    method : 'GET',
+                    async : true
+                };
+
+                function isSuccessStatusCode(code){
+                    var test = code.toString();
+                    var regex = /^(200|201|202|203|204|205|206)$/;
+                    return regex.test(test);
+                }
+
+                function send(options){
+                    if(!options.url) throw new Error('No url found');
+                    if(!options.callback) throw new Error('No callback function found');
+
+                    extend(defaults,options);
+
+                    var req = new XMLHttpRequest();
+                    if(!req) throw new Error('Http request not supported by the browser');
+
+                    req.onreadystatechange = function () {
+                        if (req.readyState === 4) {
+
+                            if(isSuccessStatusCode(req.status)){
+                                var response = this.response || this.responseText || this.responseXML;
+                                options.callback(response,req.status);
+                            }
+                            else {
+                                if(options.error){
+                                    options.error(this);
+                                }
+                            }
+                        }
+                    };
+
+                    req.open(options.method, options.url, options.async);
+                    if(options.contentType){
+                        req.setRequestHeader('Content-type', options.contentType);
+                    }
+                    if(options.headers && options.headers instanceof Object){
+                        for(var key in options.headers){
+
+                            if(key.toLowerCase() == 'content-type' && options.contentType){
+                                continue;
+                            }
+
+                            if(options.headers.hasOwnProperty(key)){
+                                var value = options.headers[key];
+                                req.setRequestHeader(key, value);
+                            }
+                        }
+                    }
+                    if(options.responseType){
+                        req.responseType = options.responseType;
+                    }
+                    console.log(req);
+                    if(options.data){
+                        req.send(options.data);
+                    }
+                    else{
+                        req.send();
+                    }
+                }
+
+                return {
+                    send : send
+                }
+
+            }();
+
+            var googlePlus = function (){
+
+                var token;
+
+                function isAuthenticated (){
+                    return token && token['access_token'];
+                }
+
+                // https://accounts.google.com/o/oauth2/auth
+                //?scope=https://www.googleapis.com/auth/youtube
+                //&response_type=token
+                //&redirect_uri=http://localhost/persistent/signin-google.html
+                //&client_id=81691439080-6mno4ckpflg5cfqljmc22lo1n9h8n94q.apps.googleusercontent.com
+                function connect(){
+
+                    var url ='https://accounts.google.com/o/oauth2/auth'
+                    +   '?scope=' + scopes
+                    +   '&response_type=token'
+                    +   '&redirect_uri=' + redirectUri
+                    +   '&client_id=' + clientId;
+
+                    window.location.href = url;
+                }
+
+                // http://localhost/persistent/signin-google.html
+                // #access_token=ya29.Ci8aA56pMKaL5sqJsna5WHkB7UM6v9_bGqHKMQthTyguLa9IqZ33c0qTvNx_bqKP5g
+                // &token_type=Bearer
+                // &expires_in=3600
+                function handleToken (){
+                    var hash = window.location.hash.split('#')[1];                  
+                    if(hash){           
+                        var result = extractFragments(hash);
+                        if(result['access_token']){
+                            token = result;
+                            return result;
+                        }                   
+                    }
+                    return null;
+                }
+
+                //{
+                // "kind": "plus#person",
+                // "etag": "\"xw0en60W6-NurXn4VBU-CMjSPEw/Kz7JA8Uptr65XP-fMPo-P8IIKp0\"",
+                // "emails": [
+                //  {
+                //   "value": "benquoueck-5472@pages.plusgoogle.com",
+                //   "type": "account"
+                //  }
+                // ],
+                // "objectType": "page",
+                // "id": "102097816670645468978",
+                // "displayName": "BenQuoueck",
+                // "url": "https://plus.google.com/102097816670645468978",
+                // "image": {
+                //  "url": "https://lh4.googleusercontent.com/-f4Ej-_ipu4o/AAAAAAAAAAI/AAAAAAAAAH4/paCifvM7WO4/photo.jpg?sz=50",
+                //  "isDefault": false
+                // },
+                // "isPlusUser": true,
+                // "language": "fr",
+                // "plusOneCount": 17,
+                // "circledByCount": 0,
+                // "verified": false,
+                // "cover": {
+                //  "layout": "banner",
+                //  "coverPhoto": {
+                //   "url": "https://lh3.googleusercontent.com/-Ni4KVVMx7p4YnlUBBbQ5olomuJonfKR5k5YnM695JrzTJKPpUfAJ-TrdJOdG7EPqvHbFXK3=s630-fcrop64=1,04c604cbffc9ffa0",
+                //   "height": 529,
+                //   "width": 940
+                //  },
+                //  "coverInfo": {
+                //   "topImageOffset": 0,
+                //   "leftImageOffset": 0
+                //  }
+                // }
+                //}
+                function getProfile(callback){
+                    if(!isAuthenticated()) throw new Error('Not authenticated');
+
+                    var url = 'https://www.googleapis.com/plus/v1/people/me?access_token='
+                    + token['access_token'];
+
+                    var options = {
+                        url : url,
+                        callback: function (response, status){
+                            callback(response,status);
+                        },
+                        error : function (e){
+                            console.log(e.status);
+                        }
+                    };
+                    ajax.send(options);
+}
+
+                function extractFragments(base){
+                    var result =  {};
+
+                    var splits = base.split('&');
+                    for (var i = 0; i < splits.length ; i++){
+                        var split = splits[i];
+                        if(split){
+                            var pair = split.split('=');   
+                            result[pair[0]] = pair[1];
+                        }
+                    }
+                    return result;
+}
+
+                return {
+                    connect : connect,
+                    handleToken: handleToken,
+                    getProfile: getProfile
+                }
+            }();
+
+            function main (){
+                google_button = document.querySelector('.google');
+                result = document.querySelector('.result');
+
+                google_button.addEventListener('click', function(){
+                    googlePlus.connect();
+                });
+
+                var token = googlePlus.handleToken();
+                if(token){
+
+
+                    googlePlus.getProfile(function(response,status){
+                        var person = JSON.parse(response);
+                        var message = 'Bonjour ' + person.displayName;
+
+                        result.innerHTML = message;
+                        google_button.style.display = 'none';
+
+                        // console.log(response);
+                    });
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded',main);
+        </script>
+    </body>
+</html>

@@ -1236,9 +1236,10 @@
             //            hideLoader();
 
             media_player_iframe = el.querySelector('iframe');
-
+            
             mp_player.style.width = options.width + 'px';
             mp_player.style.height = options.height + 'px';
+            onResize();
 
             // currentTime
             if(options.currentTime > 0){
