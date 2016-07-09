@@ -1082,6 +1082,14 @@
             volume_slider_offset_left = volume_slider.getBoundingClientRect().left;
         }
 
+        function onVolumeChange(e) {
+            var margin_anim = 12,
+                position = e.pageX - volume_slider_offset_left - margin_anim,
+                volume = position / volume_slider.clientWidth;
+
+            setVolume(volume);
+        }
+
         function onBuffering() {
             if(player){
                 var bytes = player.getVideoBytesLoaded();
@@ -1236,7 +1244,7 @@
             //            hideLoader();
 
             media_player_iframe = el.querySelector('iframe');
-            
+
             mp_player.style.width = options.width + 'px';
             mp_player.style.height = options.height + 'px';
             onResize();
