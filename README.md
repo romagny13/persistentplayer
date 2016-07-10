@@ -1,1 +1,1 @@
-# Persistent custom HTML5 video Player sample
+# Persistent video Player sample (HTML5, YouTube)
